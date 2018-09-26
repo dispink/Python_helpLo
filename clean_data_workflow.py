@@ -56,6 +56,7 @@ def claen_by_sheet(sheet_name):
     
     work_sheet_3.iloc[-1, 0]
     print(work_sheet_3)
+    work_sheet_3.to_csv('refined.csv', index = False)
     return
 
 
