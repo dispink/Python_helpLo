@@ -29,16 +29,17 @@ def claen_by_sheet(sheet_name):
     """It's a function for cleaning data from a given sheet
     """
     # Selecte the desired columnes and exclude the data with NA
-    work_sheet = xl.parse(sheet_name, skiprows = 2).dropna(how='any').loc[ : ,
-                         ['position (mm)', 'validity','cps', 'MSE', 'Si', 'S', 'Cl', 'Ar', 'K', 'Ca', 'Ti', 'Mn', 'Fe', 'Br', 'Sr']]
-    # change the columne name position (mm) to a less bug name position_mm 
-    work_sheet.rename(columns={'position (mm)':'position_mm'}, inplace=True)
+    # then change the columne name position (mm) to a less bug name position_mm 
+    work_sheet = (xl.parse(sheet_name, skiprows = 2).dropna(how='any').loc[ : ,
+                         ['position (mm)', 'validity','cps', 'MSE', 'Si', 'S', 'Cl',
+                          'Ar', 'K', 'Ca', 'Ti', 'Mn', 'Fe', 'Br', 'Sr']]
+                         .rename(columns = {'position (mm)' : 'position_mm'})
+                         )
+
     
     # criteria 1: exclude the last 2 cm scanning data since they may represent tape instead of core
     bottom_delet = int(20 / (work_sheet.position_mm[7] - work_sheet.position_mm[6]))
     work_sheet_1 = work_sheet[ : -bottom_delet]
-    
-
 
     # criteria 2: MSE < 1.5 (practicle experience), validity = 1, cps value lower than 1 std (lower limit)
     criteria_2 = (work_sheet_1.MSE < 1.5) & (work_sheet_1.validity == 1) & (work_sheet_1.cps > (work_sheet.cps.mean() - work_sheet_1.cps.std()))
@@ -54,10 +55,14 @@ def claen_by_sheet(sheet_name):
     # label the section name in this dataframe
     work_sheet_3['section'] = [sheet_name for i in work_sheet_3.Fe]
     
-    work_sheet_3.iloc[-1, 0]
+    # mark the last valid position of each core section
+    end_position = work_sheet_3.iloc[-1, 0]
+    
     print(work_sheet_3)
     work_sheet_3.to_csv('refined.csv', index = False)
-    return
+    
+    
+    return end_position
 
 
 
