@@ -20,13 +20,11 @@ file = "MD01_2419-original.xlsx"
 # load spreadsheet sec01
 xl = pd.ExcelFile(file)
 
-print(xl.sheet_names)
 
-sheet_name = xl.sheet_names[1]
-
-
-def claen_by_sheet(sheet_name):
-    """It's a function for cleaning data from a given sheet
+def clean_by_sheet(sheet_name):
+    """It's a function for cleaning data from a given sheet.
+    It automatically outputs a xlsx file containing cleaned data and excluded data.
+    Then, it returns the dataframe, end position of this section, percentage of the excluded data.
     """
     # Selecte the desired columnes and exclude the data with NA
     # then change the columne name position (mm) to a less bug name position_mm 
@@ -64,12 +62,13 @@ def claen_by_sheet(sheet_name):
     
     # output the cleaned data and excluded data
     work_sheet_ex = work_sheet[~work_sheet.position_mm.isin(work_sheet_3.position_mm)]
-    writer = pd.ExcelWriter('cleaned_MD01_2419_{}.xlsx'.format(sheet_name))
+    excluded_percentage = len(work_sheet_ex)/len(work_sheet_3) * 100
+    writer = pd.ExcelWriter('cleaned_MD01_2419_{}_{}%.xlsx'.format(sheet_name, round(excluded_percentage)))
     work_sheet_3.drop('section', axis = 1).to_excel(writer,'cleaned_data', index = False)
     work_sheet_ex.to_excel(writer,'excluded_data', index = False)
     writer.save()
     
-    return end_position
+    return work_sheet_3, end_position, round(excluded_percentage, 2) 
 
 
 
@@ -78,9 +77,6 @@ with pd.option_context('display.max_rows', None, 'display.max_columns', None):
     print(work_sheet_1[criteria_2].describe())
 
 
-work_sheet.loc[ : , 'ArFe_ratio'].std()
-work_sheet.std()
-work_sheet.describe()
 
 
 
