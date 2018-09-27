@@ -20,7 +20,6 @@ file = "MD01_2419-original.xlsx"
 # load spreadsheet sec01
 xl = pd.ExcelFile(file)
 
-
 def clean_by_sheet(sheet_name):
     """It's a function for cleaning data from a given sheet.
     It automatically outputs a xlsx file containing cleaned data and excluded data.
@@ -37,7 +36,7 @@ def clean_by_sheet(sheet_name):
     
     # criteria 1: exclude the last 2 cm scanning data since they may represent tape instead of core
     bottom_delet = int(20 / (work_sheet.position_mm[7] - work_sheet.position_mm[6]))
-    work_sheet_1 = work_sheet[ : -bottom_delet]
+    work_sheet_1 = work_sheet[ : -bottom_delet].copy()
 
     # criteria 2: MSE value lower than 2 std (higher limit), validity = 1, cps value lower than 2 std (lower limit)
     criteria_2 = (
@@ -45,13 +44,13 @@ def clean_by_sheet(sheet_name):
             & (work_sheet_1.validity == 1) 
             & (work_sheet_1.cps > (work_sheet.cps.mean() - 2 * work_sheet_1.cps.std()))
             )
-    work_sheet_2 = work_sheet_1[criteria_2]
+    work_sheet_2 = work_sheet_1[criteria_2].copy()
 
     # criteria 3: Ar/Fe lower than 1 std (upper limit)
     # have to use the data frame pass the criteria 2 since the zero value in Fe makes statics infinite
     ArFe_ratio = work_sheet_2.Ar / work_sheet_2.Fe
     criteria_3 = ArFe_ratio < (ArFe_ratio.mean() + ArFe_ratio.std())
-    work_sheet_3 = work_sheet_2[criteria_3]
+    work_sheet_3 = work_sheet_2[criteria_3].copy()
     
 
     # label the section name in this dataframe
@@ -70,7 +69,6 @@ def clean_by_sheet(sheet_name):
     
     return work_sheet_3, end_position
 
-print(xl.sheet_names)
 
 # deal with the sections have 2 replicates ####still building....
 cleaned_data_map = pd.DataFrame()
@@ -80,6 +78,7 @@ rep = 1
 for sheet_name in xl.sheet_names[1:4]:
     if len(sheet_name) == 8:        # sections having two replicates go into this loop
         if rep == 2:                    # sec**_r2 go into this loop
+            sec_count += 1
             cleaned_data_2, end_position = clean_by_sheet(sheet_name)
             data_merged = pd.merge(cleaned_data_1,
                                    cleaned_data_2,
@@ -93,21 +92,22 @@ for sheet_name in xl.sheet_names[1:4]:
                         (data_merged['{}_x'.format(column)] + data_merged['{}_y'.format(column)]) / 2
                         )
             mean_data['section'] = ['{:.5}'.format(sheet_name) for _ in mean_data.position_mm]
-            cleaned_data_map = cleaned_data_map.append(mean_data)
-            # take only end_position from r2
+            # take only end_position from r2. use the end posistion from last section to calibrate position
             end_position_list.append(end_position)
-            mean_data['cal_postion_mm'] = mean_data.position_mm
-            rep = 1
-            sec_count += 1
+            mean_data['cal_position_mm'] = mean_data.position_mm + end_position_list[sec_count-1]
+            cleaned_data_map = cleaned_data_map.append(mean_data)
+            rep = 1            
         else:                           # sec**_r2 go into this loop
             cleaned_data_1, end_position = clean_by_sheet(sheet_name)
             rep += 1
     else:                           # sections don't having replicates go into this loop
-        cleaned_data, end_position = clean_by_sheet(sheet_name)
-        cleaned_data_map = cleaned_data_map.append(cleaned_data)
-        end_position_list.append(end_position)
         sec_count += 1
-
+        cleaned_data, end_position = clean_by_sheet(sheet_name)
+        end_position_list.append(end_position)
+        cleaned_data['cal_position_mm'] = cleaned_data.position_mm + end_position_list[sec_count-1]
+        cleaned_data_map = cleaned_data_map.append(cleaned_data)
+        
+cleaned_data_map.to_csv('sections_compile.csv', index = False)
 
 
 
