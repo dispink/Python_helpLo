@@ -68,9 +68,48 @@ def clean_by_sheet(sheet_name):
     work_sheet_ex.to_excel(writer,'excluded_data', index = False)
     writer.save()
     
-    return work_sheet_3, end_position, round(excluded_percentage, 2) 
+    return work_sheet_3, end_position
+
+print(xl.sheet_names)
+
+# deal with the sections have 2 replicates ####still building....
+cleaned_data_map = {}
+end_position_list = []
+rep = 1
+for sheet_name in xl.sheet_names[2:4]:
+    if len(sheet_name) == 8:
+        if rep == 2:
+            cleaned_data_2, end_position = clean_by_sheet(sheet_name)
+            data_merged = pd.merge(cleaned_data_1,
+                                   cleaned_data_2,
+                                   how = 'inner',
+                                   on = 'position_mm'
+                                   )
+            mean_data = pd.DataFrame()
+            mean_data['position_mm'], mean_data['validity'] = data_merged.position_mm, data_merged.validity_x
+            for column in cleaned_data_1.columns[2 : -1]:
+                mean_data['{}'.format(column)] = (
+                        (data_merged['{}_x'.format(column)] + data_merged['{}_y'.format(column)]) / 2
+                        )
+            mean_data['section'] = ['{:.5}'.format(sheet_name) for _ in mean_data.position_mm]
+            # take only end_position from r2
+            end_position_list.append(end_position)
+            rep = 1
+        else:
+            cleaned_data_1, end_position = clean_by_sheet(sheet_name)
+            rep += 1
+    else:
+        cleaned_data, end_position = clean_by_sheet(sheet_name)
+        end_position_list.append(end_position)
 
 
+
+
+end_position_list = []
+for sheet_name in xl.sheet_names[1:3]:
+    cleaned_data, end_position, excluded_percentage = clean_by_sheet(sheet_name)
+    cleaned_data_map['{}'.format(sheet_name)] = cleaned_data
+    end_position_list.append(end_position)
 
 with pd.option_context('display.max_rows', None, 'display.max_columns', None):
     print(work_sheet_1)
