@@ -11,8 +11,8 @@ Created on Fri Sep 14 12:07:27 2018
 
 # import excel
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+#import numpy as np
+#import matplotlib.pyplot as plt
 
 # assign spreadsheet filename to "file"
 file = "MD01_2419-original.xlsx"
@@ -28,7 +28,7 @@ def clean_by_sheet(sheet_name):
     """
     # Selecte the desired columnes and exclude the data with NA
     # then change the columne name position (mm) to a less bug name position_mm 
-    work_sheet = (xl.parse(sheet_name, skiprows = 2).dropna(how='any').loc[ : ,
+    work_sheet = (xl.parse(sheet_name, skiprows = 2).dropna(how = 'any').loc[ : ,
                          ['position (mm)', 'validity','cps', 'MSE', 'Si', 'S', 'Cl',
                           'Ar', 'K', 'Ca', 'Ti', 'Mn', 'Fe', 'Br', 'Sr']]
                          .rename(columns = {'position (mm)' : 'position_mm'})
@@ -73,12 +73,13 @@ def clean_by_sheet(sheet_name):
 print(xl.sheet_names)
 
 # deal with the sections have 2 replicates ####still building....
-cleaned_data_map = {}
-end_position_list = []
+cleaned_data_map = pd.DataFrame()
+sec_count = 0
+end_position_list = [0]     # give a list end_position_list and give 0 to the first value
 rep = 1
-for sheet_name in xl.sheet_names[2:4]:
-    if len(sheet_name) == 8:
-        if rep == 2:
+for sheet_name in xl.sheet_names[1:4]:
+    if len(sheet_name) == 8:        # sections having two replicates go into this loop
+        if rep == 2:                    # sec**_r2 go into this loop
             cleaned_data_2, end_position = clean_by_sheet(sheet_name)
             data_merged = pd.merge(cleaned_data_1,
                                    cleaned_data_2,
@@ -92,15 +93,20 @@ for sheet_name in xl.sheet_names[2:4]:
                         (data_merged['{}_x'.format(column)] + data_merged['{}_y'.format(column)]) / 2
                         )
             mean_data['section'] = ['{:.5}'.format(sheet_name) for _ in mean_data.position_mm]
+            cleaned_data_map = cleaned_data_map.append(mean_data)
             # take only end_position from r2
             end_position_list.append(end_position)
+            mean_data['cal_postion_mm'] = mean_data.position_mm
             rep = 1
-        else:
+            sec_count += 1
+        else:                           # sec**_r2 go into this loop
             cleaned_data_1, end_position = clean_by_sheet(sheet_name)
             rep += 1
-    else:
+    else:                           # sections don't having replicates go into this loop
         cleaned_data, end_position = clean_by_sheet(sheet_name)
+        cleaned_data_map = cleaned_data_map.append(cleaned_data)
         end_position_list.append(end_position)
+        sec_count += 1
 
 
 
