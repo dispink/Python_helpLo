@@ -11,8 +11,6 @@ Created on Fri Sep 14 12:07:27 2018
 
 # import excel
 import pandas as pd
-#import numpy as np
-#import matplotlib.pyplot as plt
 
 # assign spreadsheet filename to "file"
 file = "MD01_2419-original.xlsx"
@@ -43,19 +41,34 @@ def clean_by_sheet(sheet_name):
     else:
         work_sheet_1 = work_sheet[ : -bottom_delet].copy()
     data_ex_1 = work_sheet[~work_sheet.position_mm.isin(work_sheet_1.position_mm)].copy()
-    data_ex_1['failed_at_criteria'] = ['1' for _ in data_ex_1.position_mm]
+    data_ex_1['failed_at_criteria'] = ['cut head and tail' for _ in data_ex_1.position_mm]
 
-    # criteria 2: validity = 1, cps value lower than 3 std (lower limit), Fe > 0
-    criteria_2 = (
-            (work_sheet_1.validity == 1) 
-            & (work_sheet_1.cps > (work_sheet.cps.mean() - 3 * work_sheet_1.cps.std()))
-            & (work_sheet_1.Fe > 0)
-            )
-    work_sheet_2 = work_sheet_1[criteria_2].copy()
+    # criteria 2: validity = 1
+    work_sheet_2 = work_sheet_1[work_sheet_1.validity == 1].copy()
     data_ex_2 = work_sheet_1[~work_sheet_1.position_mm.isin(work_sheet_2.position_mm)].copy()
-    data_ex_2['failed_at_criteria'] = ['2' for _ in data_ex_2.position_mm]
+    data_ex_2['failed_at_criteria'] = ['validity = 1' for _ in data_ex_2.position_mm]
+
+    # criteria 3: cps value lower than 3 std (lower limit)
+    std = 3
+    work_sheet_3 = work_sheet_2[
+            work_sheet_2.cps > (work_sheet.cps.mean() - std * work_sheet.cps.std())
+            ].copy()
+    data_ex_3 = work_sheet_2[~work_sheet_2.position_mm.isin(work_sheet_3.position_mm)].copy()
+    data_ex_3['failed_at_criteria'] = ['cps > {} std (L.L.)'.format(std) for _ in data_ex_3.position_mm]
+
+    # criteria 4: Fe > 0
+    work_sheet_4 = work_sheet_3[work_sheet_3.Fe > 0].copy()
+    data_ex_4 = work_sheet_3[~work_sheet_3.position_mm.isin(work_sheet_4.position_mm)].copy()
+    data_ex_4['failed_at_criteria'] = ['Fe > 0' for _ in data_ex_2.position_mm]
+    
+    # criteria 5: MSE value lower than 3
+    work_sheet_5 = work_sheet_4[work_sheet_1.MSE < 3].copy()
+    data_ex_5 = work_sheet_4[~work_sheet_4.position_mm.isin(work_sheet_5.position_mm)].copy()
+    data_ex_5['failed_at_criteria'] = ['MSE < 3' for _ in data_ex_5.position_mm]
+    
+    #### need to discuss which criteria is suitable
   
-    # criteria 3: Ar/Fe lower than 3 std (upper limit)
+    # criteria 6: Ar/Fe lower than 3 std (upper limit)
     ArFe_ratio = work_sheet_2.Ar / work_sheet_2.Fe
     criteria_3 = ArFe_ratio < (ArFe_ratio.mean() + 3 * ArFe_ratio.std())
     work_sheet_3 = work_sheet_2[criteria_3].copy()
