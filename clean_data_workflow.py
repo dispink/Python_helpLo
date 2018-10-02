@@ -48,49 +48,50 @@ def clean_by_sheet(sheet_name):
     data_ex_2 = work_sheet_1[~work_sheet_1.position_mm.isin(work_sheet_2.position_mm)].copy()
     data_ex_2['failed_at_criteria'] = ['validity = 1' for _ in data_ex_2.position_mm]
 
-    # criteria 3: cps value lower than 3 std (lower limit)
-    std = 3
-    work_sheet_3 = work_sheet_2[
-            work_sheet_2.cps > (work_sheet.cps.mean() - std * work_sheet.cps.std())
-            ].copy()
+    # criteria 3: Fe > 0
+    work_sheet_3 = work_sheet_2[work_sheet_2.Fe > 0].copy()
     data_ex_3 = work_sheet_2[~work_sheet_2.position_mm.isin(work_sheet_3.position_mm)].copy()
-    data_ex_3['failed_at_criteria'] = ['cps > {} std (L.L.)'.format(std) for _ in data_ex_3.position_mm]
+    data_ex_3['failed_at_criteria'] = ['Fe > 0' for _ in data_ex_3.position_mm]
 
-    # criteria 4: Fe > 0
-    work_sheet_4 = work_sheet_3[work_sheet_3.Fe > 0].copy()
+    # criteria 4: cps value lower than 3 std (lower limit)
+    std_cps = 3
+    work_sheet_4 = work_sheet_3[
+            work_sheet_3.cps > (work_sheet.cps.mean() - std_cps * work_sheet.cps.std())
+            ].copy()
     data_ex_4 = work_sheet_3[~work_sheet_3.position_mm.isin(work_sheet_4.position_mm)].copy()
-    data_ex_4['failed_at_criteria'] = ['Fe > 0' for _ in data_ex_2.position_mm]
-    
+    data_ex_4['failed_at_criteria'] = ['cps > {} std (L.L.)'.format(std_cps) for _ in data_ex_4.position_mm]
+
     # criteria 5: MSE value lower than 3
-    work_sheet_5 = work_sheet_4[work_sheet_1.MSE < 3].copy()
+    work_sheet_5 = work_sheet_4[work_sheet_4.MSE < 3].copy()
     data_ex_5 = work_sheet_4[~work_sheet_4.position_mm.isin(work_sheet_5.position_mm)].copy()
     data_ex_5['failed_at_criteria'] = ['MSE < 3' for _ in data_ex_5.position_mm]
     
     #### need to discuss which criteria is suitable
   
     # criteria 6: Ar/Fe lower than 3 std (upper limit)
-    ArFe_ratio = work_sheet_2.Ar / work_sheet_2.Fe
-    criteria_3 = ArFe_ratio < (ArFe_ratio.mean() + 3 * ArFe_ratio.std())
-    work_sheet_3 = work_sheet_2[criteria_3].copy()
-    data_ex_3 = work_sheet_2[~work_sheet_2.position_mm.isin(work_sheet_3.position_mm)].copy()
-    data_ex_3['failed_at_criteria'] = ['3' for _ in data_ex_3.position_mm]
+    std_ArFe = 1
+    ArFe_ratio_3 = work_sheet_3.Ar / work_sheet_3.Fe
+    work_sheet_6 = work_sheet_5[(work_sheet_5.Ar / work_sheet_5.Fe) < (ArFe_ratio_3.mean() + std_ArFe * ArFe_ratio_3.std())].copy()
+    data_ex_6 = work_sheet_5[~work_sheet_5.position_mm.isin(work_sheet_6.position_mm)].copy()
+    data_ex_6['failed_at_criteria'] = ['Ar/Fe < {} std (H.L.)'.format(std_ArFe) for _ in data_ex_6.position_mm]
     
     # label the section name in this dataframe
-    work_sheet_3['section'] = [sheet_name for i in work_sheet_3.Fe]
+    work_sheet_6['section'] = [sheet_name for i in work_sheet_6.Fe]
     
     # output the cleaned data and excluded data
-    data_ex_map = data_ex_1.append(data_ex_2).append(data_ex_3)
+    data_ex_map = data_ex_1.append(data_ex_2).append(data_ex_3).append(data_ex_4).append(data_ex_5).append(data_ex_6)
     excluded_percentage = len(data_ex_map)/len(work_sheet) * 100
     writer = pd.ExcelWriter('cleaned_MD01_2419_{}_{}%.xlsx'.format(sheet_name, round(excluded_percentage)))
-    work_sheet_3.drop('section', axis = 1).to_excel(writer,'cleaned_data', index = False)
+    work_sheet_6.drop('section', axis = 1).to_excel(writer,'cleaned_data', index = False)
     data_ex_map.to_excel(writer,'excluded_data', index = False)
     writer.save()
     
-    return work_sheet_3
+    return work_sheet_6, work_sheet_1
 
 
 # Run all the sections 
 cleaned_data_map = pd.DataFrame()
+raw_data_map = pd.DataFrame()
 sec_count = 0
 end_position_list = [0]     # give a list end_position_list and give 0 to the first value
 rep = 1
@@ -98,7 +99,7 @@ for sheet_name in xl.sheet_names[1: len(xl.sheet_names)]:
     if len(sheet_name) == 8:        # sections having two replicates go into this loop
         if rep == 2:                    # sec**_r2 go into this loop
             sec_count += 1
-            cleaned_data_2 = clean_by_sheet(sheet_name)
+            cleaned_data_2, _ = clean_by_sheet(sheet_name)
             data_merged = pd.merge(cleaned_data_1,
                                    cleaned_data_2,
                                    how = 'inner',
@@ -118,14 +119,17 @@ for sheet_name in xl.sheet_names[1: len(xl.sheet_names)]:
             cleaned_data_map = cleaned_data_map.append(mean_data)
             rep = 1            
         else:                           # sec**_r2 go into this loop
-            cleaned_data_1= clean_by_sheet(sheet_name)
+            cleaned_data_1, raw_sheet = clean_by_sheet(sheet_name)
+            raw_data_map = raw_data_map.append(raw_sheet)
             rep += 1
     else:                           # sections don't having replicates go into this loop
         sec_count += 1
-        cleaned_data = clean_by_sheet(sheet_name)
+        cleaned_data, raw_sheet = clean_by_sheet(sheet_name)
         cleaned_data['cal_position_mm'] = cleaned_data.position_mm + end_position_list[sec_count-1]
         end_position_list.append(cleaned_data.cal_position_mm.iloc[-1])
         cleaned_data_map = cleaned_data_map.append(cleaned_data)
+        raw_data_map = raw_data_map.append(raw_sheet)
 
 # Final: output the compiled data in csv        
 cleaned_data_map.to_csv('MD01_2419_all_sections.csv', index = False)
+raw_data_map.to_csv('MD01_2419_all_sections_raw.csv', index = False)
