@@ -24,13 +24,15 @@ def clean_by_sheet(sheet_name):
     It automatically outputs a xlsx file containing cleaned data and excluded data.
     Then, it returns the dataframe, end position of this section, percentage of the excluded data.
     """
-    # Selecte the desired columnes and exclude the data with NA
-    # then change the columne name position (mm) to a less bug name position_mm 
-    work_sheet = (xl.parse(sheet_name, skiprows = 2).dropna(how = 'any').loc[ : ,
-                         ['position (mm)', 'validity','cps', 'MSE', 'Si', 'S', 'Cl',
-                          'Ar', 'K', 'Ca', 'Ti', 'Mn', 'Fe', 'Br', 'Sr']]
+
+    work_sheet = (xl.parse(sheet_name, skiprows = 2).dropna(how = 'any').iloc[: , 1:]
                          .rename(columns = {'position (mm)' : 'position_mm'})
                          )
+    # reorder the columns to make the columns that are not desired to be meaned in r1 r2 sections to the first two columns
+    cols = list(work_sheet.columns)
+    cols = cols[0:1] + cols[2:3] + cols[1:2] + cols[3:]
+    work_sheet = work_sheet[cols]
+    
     data_ex_map = pd.DataFrame()
     # criteria 1: exclude the last 2 cm scanning data since they may represent tape instead of core
     resolution = work_sheet.position_mm[7] - work_sheet.position_mm[6]
@@ -65,28 +67,26 @@ def clean_by_sheet(sheet_name):
     work_sheet_5 = work_sheet_4[work_sheet_4.MSE < 3].copy()
     data_ex_5 = work_sheet_4[~work_sheet_4.position_mm.isin(work_sheet_5.position_mm)].copy()
     data_ex_5['failed_at_criteria'] = ['MSE < 3' for _ in data_ex_5.position_mm]
-    
-    #### need to discuss which criteria is suitable
-  
-    # criteria 6: Ar/Fe lower than 3 std (upper limit)
-    std_ArFe = 1
-    ArFe_ratio_3 = work_sheet_3.Ar / work_sheet_3.Fe
-    work_sheet_6 = work_sheet_5[(work_sheet_5.Ar / work_sheet_5.Fe) < (ArFe_ratio_3.mean() + std_ArFe * ArFe_ratio_3.std())].copy()
+     
+    # criteria 6: Ar/cps lower than 1 std (upper limit)
+    std_ArCps = 1
+    ArCps_ratio = work_sheet.Ar / work_sheet.cps
+    work_sheet_6 = work_sheet_5[(work_sheet_5.Ar / work_sheet_5.cps) < (ArCps_ratio.mean() + std_ArCps * ArCps_ratio.std())].copy()
     data_ex_6 = work_sheet_5[~work_sheet_5.position_mm.isin(work_sheet_6.position_mm)].copy()
-    data_ex_6['failed_at_criteria'] = ['Ar/Fe < {} std (H.L.)'.format(std_ArFe) for _ in data_ex_6.position_mm]
+    data_ex_6['failed_at_criteria'] = ['Ar/cps < {} std (H.L.)'.format(std_ArCps) for _ in data_ex_6.position_mm]
     
     # label the section name in this dataframe
     work_sheet_6['section'] = [sheet_name for i in work_sheet_6.Fe]
     
     # output the cleaned data and excluded data
-    data_ex_map = data_ex_1.append(data_ex_2).append(data_ex_3).append(data_ex_4).append(data_ex_5).append(data_ex_6)
+    data_ex_map = pd.concat([data_ex_1, data_ex_2, data_ex_3, data_ex_4, data_ex_5, data_ex_6])
     excluded_percentage = len(data_ex_map)/len(work_sheet) * 100
     writer = pd.ExcelWriter('cleaned_MD01_2419_{}_{}%.xlsx'.format(sheet_name, round(excluded_percentage)))
     work_sheet_6.drop('section', axis = 1).to_excel(writer,'cleaned_data', index = False)
     data_ex_map.to_excel(writer,'excluded_data', index = False)
     writer.save()
     
-    return work_sheet_6, work_sheet_1
+    return work_sheet_6, work_sheet
 
 
 # Run all the sections 
@@ -133,3 +133,9 @@ for sheet_name in xl.sheet_names[1: len(xl.sheet_names)]:
 # Final: output the compiled data in csv        
 cleaned_data_map.to_csv('MD01_2419_all_sections.csv', index = False)
 raw_data_map.to_csv('MD01_2419_all_sections_raw.csv', index = False)
+
+print(
+      round(
+              100 * len(cleaned_data_map) / len(raw_data_map)
+              ), '% of data preserved.'
+      )
